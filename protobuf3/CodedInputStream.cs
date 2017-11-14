@@ -539,7 +539,7 @@ namespace Google.Protobuf
         /// <summary>
         /// Reads a string field from the stream.
         /// </summary>
-        public string ReadString()
+        public unsafe string ReadString()
         {
             int length = ReadLength();
             // No need to read any data for an empty string.
@@ -547,16 +547,31 @@ namespace Google.Protobuf
             {
                 return "";
             }
+
+            var maxChars = CodedOutputStream.Utf8Encoding.GetMaxCharCount(length);
+            var charBuffer = stackalloc char[maxChars];
+            int charsWritten;
+
             if (length <= bufferSize - bufferPos)
             {
                 // Fast path:  We already have the bytes in a contiguous buffer, so
                 //   just copy directly from it.
-                String result = CodedOutputStream.Utf8Encoding.GetString(buffer, bufferPos, length);
+
+                fixed (byte* dataPtr = buffer)
+                    charsWritten = CodedOutputStream.Utf8Encoding.GetChars(&dataPtr[bufferPos], length, charBuffer, maxChars);
+
+                var result = new String(charBuffer, 0, charsWritten);
+
                 bufferPos += length;
                 return result;
             }
+
             // Slow path: Build a byte array first then copy it.
-            return CodedOutputStream.Utf8Encoding.GetString(ReadRawBytes(length), 0, length);
+            var rawBuffer = ReadRawBytes(length);
+            fixed (byte* dataPtr = rawBuffer)
+                charsWritten = CodedOutputStream.Utf8Encoding.GetChars(&dataPtr[0], length, charBuffer, maxChars);
+            
+            return new String(charBuffer, 0, charsWritten);
         }
 
         /// <summary>
