@@ -548,9 +548,7 @@ namespace Google.Protobuf
                 return "";
             }
 
-            var maxChars = CodedOutputStream.Utf8Encoding.GetMaxCharCount(length);
-            var charBuffer = stackalloc char[maxChars];
-            int charsWritten;
+            String result;
 
             if (length <= bufferSize - bufferPos)
             {
@@ -558,9 +556,10 @@ namespace Google.Protobuf
                 //   just copy directly from it.
 
                 fixed (byte* dataPtr = buffer)
-                    charsWritten = CodedOutputStream.Utf8Encoding.GetChars(&dataPtr[bufferPos], length, charBuffer, maxChars);
-
-                var result = new String(charBuffer, 0, charsWritten);
+                {
+                    sbyte* sbytePtr = (sbyte*)&dataPtr[bufferPos];
+                    result = new String(sbytePtr, 0, length, CodedOutputStream.Utf8Encoding);
+                }
 
                 bufferPos += length;
                 return result;
@@ -569,9 +568,12 @@ namespace Google.Protobuf
             // Slow path: Build a byte array first then copy it.
             var rawBuffer = ReadRawBytes(length);
             fixed (byte* dataPtr = rawBuffer)
-                charsWritten = CodedOutputStream.Utf8Encoding.GetChars(&dataPtr[0], length, charBuffer, maxChars);
-            
-            return new String(charBuffer, 0, charsWritten);
+            {
+                sbyte* sbytePtr = (sbyte*)&dataPtr[0];
+                result = new String(sbytePtr, 0, length, CodedOutputStream.Utf8Encoding);
+            }
+
+            return result;
         }
 
         /// <summary>
